@@ -1,0 +1,152 @@
+name: Render Google Flow video
+
+on:
+  # Manual run: Actions tab -> "Render Google Flow video" -> Run workflow
+  workflow_dispatch:
+    inputs:
+      input_dir:
+        description: Folder with numbered clips (1.mp4, 2.mp4, ...)
+        default: videos
+        type: string
+      output_dir:
+        description: Folder for the rendered video
+        default: output
+        type: string
+      music_dir:
+        description: Music folder or a single audio file (optional)
+        default: music
+        type: string
+      output_name:
+        description: Output filename
+        default: final_video.mp4
+        type: string
+      config_file:
+        description: Config file path
+        default: config.json
+        type: string
+      clips_url:
+        description: "Optional: download clips from this URL (.zip, .txt list of URLs, or a video) instead of using repo files"
+        default: ""
+        type: string
+      set_overrides:
+        description: "Optional config overrides, one per line, e.g. transitions.duration=1.2"
+        default: ""
+        type: string
+      run_tests:
+        description: Run the automated test-suite first
+        default: false
+        type: boolean
+
+  # Automatic run when clips/config change. DISABLED unless the repository
+  # variable AUTO_RENDER_ON_PUSH is set to "true"
+  # (Settings -> Secrets and variables -> Actions -> Variables).
+  push:
+    branches: [main]
+    paths:
+      - "videos/**"
+      - "music/**"
+      - "intro_outro/**"
+      - "config.json"
+      - "scripts/video_editor.py"
+
+concurrency:
+  group: render-video-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    # push runs only when explicitly enabled; manual runs always allowed
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.AUTO_RENDER_ON_PUSH == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      INPUT_DIR: ${{ inputs.input_dir || 'videos' }}
+      OUTPUT_DIR: ${{ inputs.output_dir || 'output' }}
+      MUSIC_DIR: ${{ inputs.music_dir || 'music' }}
+      OUTPUT_NAME: ${{ inputs.output_name || 'final_video.mp4' }}
+      CONFIG_FILE: ${{ inputs.config_file || 'config.json' }}
+      # Either the manual input or a repository secret named CLIPS_URL (keeps tokens out of logs)
+      CLIPS_URL: ${{ inputs.clips_url || secrets.CLIPS_URL }}
+      SET_OVERRIDES: ${{ inputs.set_overrides }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true # pulls Git LFS videos if you use LFS; harmless otherwise
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install FFmpeg and fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+          ffmpeg -version | head -1
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          if [ "${{ inputs.run_tests }}" = "true" ]; then pip install -r requirements-dev.txt; fi
+
+      - name: Run tests
+        if: ${{ inputs.run_tests }}
+        run: python -m pytest tests -v
+
+      - name: Download clips from external storage
+        if: ${{ env.CLIPS_URL != '' }}
+        run: python scripts/fetch_clips.py --url "$CLIPS_URL" --dest "$INPUT_DIR"
+
+      - name: Show inputs and free disk space
+        run: |
+          echo "Clips in $INPUT_DIR:"
+          ls -lh "$INPUT_DIR" || true
+          df -h . | tail -1
+
+      - name: Render video
+        run: |
+          SET_ARGS=()
+          while IFS= read -r line; do
+            line="${line%$'\r'}"
+            if [ -n "$line" ]; then SET_ARGS+=(--set "$line"); fi
+          done <<< "$SET_OVERRIDES"
+          python scripts/video_editor.py \
+            --config "$CONFIG_FILE" \
+            --input "$INPUT_DIR" \
+            --output-dir "$OUTPUT_DIR" \
+            --music-dir "$MUSIC_DIR" \
+            --output-name "$OUTPUT_NAME" \
+            --overwrite \
+            "${SET_ARGS[@]}"
+
+      - name: Summarise render
+        if: ${{ always() }}
+        run: python scripts/summarize_report.py "$OUTPUT_DIR/render_report.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload final video
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-video-${{ github.run_number }}
+          path: |
+            ${{ env.OUTPUT_DIR }}/*.mp4
+            !${{ env.OUTPUT_DIR }}/*.part.mp4
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0 # MP4 is already compressed
+
+      - name: Upload render log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-log-${{ github.run_number }}
+          path: |
+            ${{ env.OUTPUT_DIR }}/render.log
+            ${{ env.OUTPUT_DIR }}/render_report.json
+          if-no-files-found: ignore
+          retention-days: 14

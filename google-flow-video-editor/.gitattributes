@@ -1,0 +1,8 @@
+# Git LFS for large clips is OPTIONAL. To enable, run once (needs git-lfs installed):
+#   git lfs install
+#   git lfs track "videos/*.mp4" "music/*.mp3"
+# which appends lines like the ones below. See README "Storage limits" first:
+# LFS has its own free quota and checkouts in Actions consume LFS bandwidth.
+#
+# videos/*.mp4 filter=lfs diff=lfs merge=lfs -text
+# music/*.mp3  filter=lfs diff=lfs merge=lfs -text

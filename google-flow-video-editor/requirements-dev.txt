@@ -1,0 +1,3 @@
+-r requirements.txt
+pytest>=7
+pyyaml>=6      # only used to sanity-check the workflow file

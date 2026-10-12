@@ -1,0 +1,13 @@
+# Rendered output (kept out of Git; download from the Actions artifact instead)
+output/*
+!output/.gitkeep
+*.part.mp4
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Temp
+flow_editor_*/
+.DS_Store

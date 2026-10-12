@@ -1,0 +1,7 @@
+# Runtime dependencies
+# -------------------
+# The editor uses ONLY the Python standard library (Python 3.9+).
+# It requires the FFmpeg and FFprobe binaries (FFmpeg 4.3+; 5.x/6.x recommended):
+#   Ubuntu/Debian: sudo apt-get install ffmpeg      macOS: brew install ffmpeg
+#   Windows:       winget install ffmpeg
+# (The GitHub Actions workflow installs FFmpeg for you.)
