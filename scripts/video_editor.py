@@ -415,8 +415,18 @@ class Transition:
 # Clip discovery
 # --------------------------------------------------------------------------- #
 
+# "7", "07", "scene07", "scene07_the_tap", "clip-3", "shot 12 wide"
+CLIP_NAME_RE = re.compile(r"(?:scene|clip|shot)?[ _-]?(\d+)(?:[ _-].*)?", re.IGNORECASE)
+
+
+def clip_number(stem: str) -> Optional[int]:
+    m = CLIP_NAME_RE.fullmatch(stem)
+    return int(m.group(1)) if m else None
+
+
 def discover_clips(input_dir: Path, extensions: List[str]) -> List[Tuple[int, Path]]:
-    """Find files named <integer>.<ext>; return them sorted by integer value.
+    """Find files named <integer>.<ext> or scene<integer>[_label].<ext>; return
+    them sorted by integer value.
 
     '10.mp4' sorts after '2.mp4'. Non-numeric names are ignored (logged).
     If two files share a number (1.mp4 and 01.mov) the first is kept.
@@ -429,8 +439,8 @@ def discover_clips(input_dir: Path, extensions: List[str]) -> List[Tuple[int, Pa
     for p in sorted(input_dir.iterdir()):
         if not p.is_file() or p.name.startswith("."):
             continue
-        if p.suffix.lower() in exts and p.stem.isdigit():
-            n = int(p.stem)
+        n = clip_number(p.stem) if p.suffix.lower() in exts else None
+        if n is not None:
             if n in found:
                 LOG.warning("Duplicate clip number %d: keeping %s, ignoring %s", n, found[n].name, p.name)
             else:
@@ -533,7 +543,7 @@ class VideoEditor:
         in_dir = self.p("input_dir")
         found = discover_clips(in_dir, self.cfg.input.extensions)
         if not found:
-            raise InputError(f"No numbered clips (1.mp4, 2.mp4, ...) found in {in_dir}")
+            raise InputError(f"No numbered clips (1.mp4, 2.mp4, ... or scene01_name.mp4, ...) found in {in_dir}")
         LOG.info("Found %d numbered clip(s) in %s: %s", len(found), in_dir,
                  ", ".join(p.name for _, p in found))
         clips: List[Clip] = []

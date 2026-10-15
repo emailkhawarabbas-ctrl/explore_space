@@ -77,6 +77,15 @@ class TestDiscovery(unittest.TestCase):
         found = ve.discover_clips(d, [".mp4"])
         self.assertEqual([n for n, _ in found], [1, 2, 3, 9, 10, 11, 100])
 
+    def test_scene_prefixed_names(self):
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        for n in ("scene02_source.mp4", "scene10_end.mp4", "scene01_hook.mp4", "scene03.mp4"):
+            (d / n).write_bytes(b"x")
+        found = ve.discover_clips(d, [".mp4"])
+        self.assertEqual([p.name for _, p in found],
+                         ["scene01_hook.mp4", "scene02_source.mp4", "scene03.mp4", "scene10_end.mp4"])
+
     def test_duplicates_and_gaps(self):
         d = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
