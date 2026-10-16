@@ -348,8 +348,8 @@ class TestTitlesAndOutro(Base):
                       "--set", "titles.title.enabled=true", "--set", 'titles.title.text="Hello World"',
                       "--set", "titles.credits.enabled=true", "--set", 'titles.credits.lines=["The End","Thanks"]',
                       "--set", "titles.credits.duration=3",
-                      "--set", "intro_outro.intro.enabled=true", "--set", f'intro_outro.intro.file="{extra / "intro.mp4"}"',
-                      "--set", "intro_outro.outro.enabled=true", "--set", f'intro_outro.outro.file="{extra / "outro.mp4"}"')
+                      "--set", "intro_outro.intro.enabled=true", "--set", f'intro_outro.intro.file={json.dumps(str(extra / "intro.mp4"))}',
+                      "--set", "intro_outro.outro.enabled=true", "--set", f'intro_outro.outro.file={json.dumps(str(extra / "outro.mp4"))}')
         self.assertEqual(code, 0)
         rep = self.report()
         self.assertEqual(len(rep["transitions"]), 4)       # intro-1, 1-2, 2-outro, outro-credits

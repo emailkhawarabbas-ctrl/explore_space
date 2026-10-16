@@ -272,6 +272,13 @@ def resolve_path(p: Any, base: Path) -> Path:
 # Subprocess helpers
 # --------------------------------------------------------------------------- #
 
+def filter_path(p: Any) -> str:
+    """Path for use inside a quoted filter option (textfile='...'). Forward
+    slashes, and the Windows drive colon escaped so the option parser does not
+    split on it: C:\\x\\y.txt -> C\\:/x/y.txt."""
+    return Path(p).as_posix().replace(":", r"\:")
+
+
 def run_capture(cmd: List[str], timeout: Optional[float] = None) -> subprocess.CompletedProcess:
     LOG.debug("$ %s", shlex.join(str(c) for c in cmd))
     try:
@@ -765,10 +772,10 @@ class VideoEditor:
 
     def _drawtext(self, textfile: Path, fontsize: int, color: str, x: str, y: str,
                   alpha: Optional[str] = None) -> str:
-        parts = [f"textfile='{textfile}'", f"fontsize={fontsize}", f"fontcolor={color}", f"x={x}", f"y={y}",
-                 "shadowx=2", "shadowy=2", "shadowcolor=black@0.55", "expansion=none"]
+        parts = [f"textfile='{filter_path(textfile)}'", f"fontsize={fontsize}", f"fontcolor={color}",
+                 f"x={x}", f"y={y}", "shadowx=2", "shadowy=2", "shadowcolor=black@0.55", "expansion=none"]
         if self.font:
-            parts.append(f"fontfile='{self.font}'")
+            parts.append(f"fontfile='{filter_path(self.font)}'")
         if alpha:
             parts.append(f"alpha='{alpha}'")
         return "drawtext=" + ":".join(parts)
