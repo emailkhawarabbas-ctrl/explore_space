@@ -415,41 +415,57 @@ class Transition:
 # Clip discovery
 # --------------------------------------------------------------------------- #
 
-# "7", "07", "scene07", "scene07_the_tap", "clip-3", "shot 12 wide"
-CLIP_NAME_RE = re.compile(r"(?:scene|clip|shot)?[ _-]?(\d+)(?:[ _-].*)?", re.IGNORECASE)
+# "7", "07", "scene07", "scene07_the_tap", "clip-3", "shot 12 wide",
+# and multi-part "scene01-2", "scene01_02_label", "3-1" (scene 1, shot 2 ...)
+CLIP_NAME_RE = re.compile(r"(?:scene|clip|shot)?[ _-]?(\d+(?:[ _-]\d+)*)(?:[ _-].*)?", re.IGNORECASE)
+
+
+def clip_key(stem: str) -> Optional[Tuple[int, ...]]:
+    """Numeric sort key of a clip name: 'scene01-2' -> (1, 2), '7' -> (7,)."""
+    m = CLIP_NAME_RE.fullmatch(stem)
+    return tuple(int(n) for n in re.split(r"[ _-]", m.group(1))) if m else None
 
 
 def clip_number(stem: str) -> Optional[int]:
-    m = CLIP_NAME_RE.fullmatch(stem)
-    return int(m.group(1)) if m else None
+    key = clip_key(stem)
+    return key[0] if key else None
 
 
 def discover_clips(input_dir: Path, extensions: List[str]) -> List[Tuple[int, Path]]:
-    """Find files named <integer>.<ext> or scene<integer>[_label].<ext>; return
-    them sorted by integer value.
+    """Find files named <integer>.<ext>, scene<integer>[_label].<ext> or
+    scene<integer>-<integer>[_label].<ext>; return them sorted numerically.
 
-    '10.mp4' sorts after '2.mp4'. Non-numeric names are ignored (logged).
-    If two files share a number (1.mp4 and 01.mov) the first is kept.
+    '10.mp4' sorts after '2.mp4', 'scene01-10' after 'scene01-2'.
+    Non-numeric names are ignored (logged). If two files share a number
+    (1.mp4 and 01.mov) the first is kept. When any name has several numeric
+    parts (scene01-1, scene01-2, ...) the clips are renumbered 1..N in order.
     """
     if not input_dir.is_dir():
         raise InputError(f"Input directory does not exist: {input_dir}")
     exts = {e.lower() for e in extensions}
-    found: Dict[int, Path] = {}
+    found: Dict[Tuple[int, ...], Path] = {}
     ignored: List[str] = []
     for p in sorted(input_dir.iterdir()):
         if not p.is_file() or p.name.startswith("."):
             continue
-        n = clip_number(p.stem) if p.suffix.lower() in exts else None
-        if n is not None:
-            if n in found:
-                LOG.warning("Duplicate clip number %d: keeping %s, ignoring %s", n, found[n].name, p.name)
+        k = clip_key(p.stem) if p.suffix.lower() in exts else None
+        if k is not None:
+            if k in found:
+                LOG.warning("Duplicate clip number %s: keeping %s, ignoring %s",
+                            "-".join(map(str, k)), found[k].name, p.name)
             else:
-                found[n] = p
+                found[k] = p
         else:
             ignored.append(p.name)
     if ignored:
         LOG.info("Ignored non-clip files: %s", ", ".join(ignored))
-    ordered = sorted(found.items())
+    keyed = sorted(found.items())
+    if any(len(k) > 1 for k, _ in keyed):
+        ordered = [(i, p) for i, (_, p) in enumerate(keyed, 1)]
+        LOG.info("Multi-part clip names; numbered in order: %s",
+                 ", ".join(f"{n}={p.name}" for n, p in ordered))
+        return ordered
+    ordered = [(k[0], p) for k, p in keyed]
     if ordered:
         nums = [n for n, _ in ordered]
         gaps = sorted(set(range(nums[0], nums[-1] + 1)) - set(nums))
