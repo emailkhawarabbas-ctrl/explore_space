@@ -628,7 +628,7 @@ class VideoEditor:
             return
         stats = self.tmp / f"stats_{clip.number}.txt"
         res = run_capture(["ffmpeg", "-v", "error", "-nostdin", "-i", str(clip.path), "-an",
-                           "-vf", f"fps=2,scale=320:-2,signalstats,metadata=mode=print:file={stats}",
+                           "-vf", f"fps=2,scale=320:-2,signalstats,metadata=mode=print:file='{filter_path(stats)}'",
                            "-f", "null", "-"], timeout=300)
         if res.returncode != 0 or not stats.exists():
             LOG.debug("colour analysis failed for %s", clip.path.name)
@@ -1090,6 +1090,11 @@ class VideoEditor:
             self.render_join([segs[i] for i in idx], [trans[i] for i in idx[:-1]], chunk_out, False,
                              label=f"chunk {gi + 1}/{groups}")
             new_segs.append(Segment(chunk_out, probe_media(chunk_out).duration, "chunk"))
+            if not self.keep_temp:
+                # Inputs are no longer needed once chunked; free disk space for long renders.
+                for i in idx:
+                    if segs[i].path.parent == self.tmp:
+                        segs[i].path.unlink(missing_ok=True)
             if gi < groups - 1:
                 new_trans.append(trans[idx[-1]])
             start += size

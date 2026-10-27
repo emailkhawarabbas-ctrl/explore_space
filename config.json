@@ -21,7 +21,7 @@
     "fps": "auto",
     "fit_mode": "pad",
     "video_codec": "libx264",
-    "crf": 18,
+    "crf": 21,
     "preset": "slow",
     "pix_fmt": "yuv420p",
     "audio_codec": "aac",
@@ -115,7 +115,7 @@
   "performance": {
     "max_clips_per_pass": 10,
     "threads": 0,
-    "intermediate_crf": 12,
+    "intermediate_crf": 20,
     "intermediate_preset": "veryfast"
   }
 }
